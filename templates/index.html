@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>PDF Utility Application</title>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <style>
+
+        body{
+            background:#f4f7fb;
+            font-family:Arial;
+        }
+
+        .main-container{
+            margin-top:40px;
+            margin-bottom:40px;
+        }
+
+        .card-box{
+            background:white;
+            padding:30px;
+            border-radius:15px;
+            box-shadow:0px 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .upload-box{
+            border:2px dashed #0d6efd;
+            border-radius:12px;
+            padding:40px;
+            text-align:center;
+            background:#f8fbff;
+        }
+
+        .btn-process{
+            margin-top:20px;
+            width:100%;
+            height:50px;
+            font-size:18px;
+            font-weight:bold;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container main-container">
+
+<div class="card-box">
+
+    <!-- ================================= -->
+    <!-- DOB MASK MODULE -->
+    <!-- ================================= -->
+
+    <h2 class="text-primary">
+        PDF DOB Masking Module
+    </h2>
+
+    <p class="text-muted">
+        Upload PDFs and automatically hide Date of Birth values.
+    </p>
+
+    <form action="/upload"
+          method="POST"
+          enctype="multipart/form-data">
+
+        <div class="upload-box">
+
+            <input type="file"
+                   class="form-control"
+                   name="pdfs"
+                   id="pdfFiles"
+                   multiple
+                   accept=".pdf">
+
+        </div>
+
+        <table class="table table-bordered mt-4">
+
+            <thead class="table-primary">
+
+                <tr>
+                    <th>#</th>
+                    <th>File Name</th>
+                    <th>Size</th>
+                </tr>
+
+            </thead>
+
+            <tbody id="maskTableBody">
+
+                <tr>
+
+                    <td colspan="3"
+                        class="text-center text-muted">
+
+                        No files selected
+
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+        <button type="submit"
+                class="btn btn-primary btn-process">
+
+            Process DOB Masking
+
+        </button>
+
+    </form>
+
+    <!-- ================================= -->
+    <!-- PDF ORGANIZER MODULE -->
+    <!-- ================================= -->
+
+    <hr class="mt-5 mb-5">
+
+    <h2 class="text-success">
+        PDF Folder Organizer Module
+    </h2>
+
+    <p class="text-muted">
+        Upload PDFs and create separate folders automatically.
+    </p>
+
+    <form action="/organize"
+          method="POST"
+          enctype="multipart/form-data">
+
+        <div class="upload-box">
+
+            <input type="file"
+                   class="form-control"
+                   name="folder_pdfs"
+                   id="folderPdfFiles"
+                   multiple
+                   accept=".pdf">
+
+        </div>
+
+        <table class="table table-bordered mt-4">
+
+            <thead class="table-success">
+
+                <tr>
+                    <th>#</th>
+                    <th>PDF File</th>
+                    <th>Folder Name</th>
+                </tr>
+
+            </thead>
+
+            <tbody id="folderTableBody">
+
+                <tr>
+
+                    <td colspan="3"
+                        class="text-center text-muted">
+
+                        No files selected
+
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+        <button type="submit"
+                class="btn btn-success btn-process">
+
+            Create PDF Folders
+
+        </button>
+
+    </form>
+
+    <!-- ================================= -->
+    <!-- HISTORY -->
+    <!-- ================================= -->
+
+    <hr class="mt-5 mb-4">
+
+    <h3>
+        Processing History
+    </h3>
+
+    <table class="table table-bordered table-striped mt-3">
+
+        <thead class="table-dark">
+
+            <tr>
+                <th>Date</th>
+                <th>File Name</th>
+                <th>Status</th>
+                <th>Remarks</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            {% if history_data %}
+
+                {% for row in history_data %}
+
+                <tr>
+
+                    <td>{{ row[0] }}</td>
+                    <td>{{ row[1] }}</td>
+
+                    <td>
+
+                        {% if row[2] == 'SUCCESS' %}
+
+                            <span class="badge bg-success">
+                                SUCCESS
+                            </span>
+
+                        {% else %}
+
+                            <span class="badge bg-danger">
+                                FAILED
+                            </span>
+
+                        {% endif %}
+
+                    </td>
+
+                    <td>{{ row[3] }}</td>
+
+                </tr>
+
+                {% endfor %}
+
+            {% else %}
+
+                <tr>
+
+                    <td colspan="4"
+                        class="text-center text-muted">
+
+                        No history available
+
+                    </td>
+
+                </tr>
+
+            {% endif %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+</div>
+
+<script>
+
+    // =================================
+    // DOB MASK MODULE
+    // =================================
+
+    const pdfInput =
+        document.getElementById('pdfFiles');
+
+    const maskTableBody =
+        document.getElementById('maskTableBody');
+
+    pdfInput.addEventListener('change', function(){
+
+        const files = pdfInput.files;
+
+        maskTableBody.innerHTML = '';
+
+        if(files.length === 0){
+
+            maskTableBody.innerHTML = `
+                <tr>
+                    <td colspan="3"
+                        class="text-center text-muted">
+                        No files selected
+                    </td>
+                </tr>
+            `;
+
+            return;
+        }
+
+        for(let i = 0; i < files.length; i++){
+
+            const file = files[i];
+
+            const row = `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${file.name}</td>
+                    <td>${(file.size / 1024).toFixed(2)} KB</td>
+                </tr>
+            `;
+
+            maskTableBody.innerHTML += row;
+        }
+
+    });
+
+    // =================================
+    // PDF ORGANIZER MODULE
+    // =================================
+
+    const folderPdfInput =
+        document.getElementById('folderPdfFiles');
+
+    const folderTableBody =
+        document.getElementById('folderTableBody');
+
+    folderPdfInput.addEventListener('change', function(){
+
+        const files = folderPdfInput.files;
+
+        folderTableBody.innerHTML = '';
+
+        if(files.length === 0){
+
+            folderTableBody.innerHTML = `
+                <tr>
+                    <td colspan="3"
+                        class="text-center text-muted">
+                        No files selected
+                    </td>
+                </tr>
+            `;
+
+            return;
+        }
+
+        for(let i = 0; i < files.length; i++){
+
+            const file = files[i];
+
+            const folderName =
+                file.name.replace('.pdf', '');
+
+            const row = `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${file.name}</td>
+                    <td>${folderName}</td>
+                </tr>
+            `;
+
+            folderTableBody.innerHTML += row;
+        }
+
+    });
+
+</script>
+
+</body>
+</html>

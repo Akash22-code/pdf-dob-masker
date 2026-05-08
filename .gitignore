@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+uploads/
+outputs/
+logs/
+organized_pdfs/
+history/
+*.pyc
