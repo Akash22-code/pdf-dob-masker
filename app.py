@@ -80,16 +80,11 @@ def hide_dob(input_pdf, output_pdf):
 
     try:
 
-        logging.info(
-            f"Processing started: {input_pdf}"
-        )
-
         doc = fitz.open(input_pdf)
 
-        dob_found = False
         masking_done = False
 
-        for page_number, page in enumerate(doc):
+        for page in doc:
 
             dob_fields = page.search_for("Date of Birth")
 
@@ -98,7 +93,7 @@ def hide_dob(input_pdf, output_pdf):
                 search_area = fitz.Rect(
                     field.x1 + 5,
                     field.y0 - 2,
-                    field.x1 + 120,
+                    field.x1 + 140,
                     field.y1 + 2
                 )
 
@@ -115,8 +110,6 @@ def hide_dob(input_pdf, output_pdf):
                         dob_words.append(word)
 
                 if dob_words:
-
-                    dob_found = True
 
                     x0 = min(w[0] for w in dob_words)
                     y0 = min(w[1] for w in dob_words)
@@ -140,7 +133,11 @@ def hide_dob(input_pdf, output_pdf):
 
         if masking_done:
 
-            doc.save(output_pdf)
+            doc.save(
+                output_pdf,
+                garbage=4,
+                deflate=True
+            )
 
         else:
 
@@ -152,9 +149,113 @@ def hide_dob(input_pdf, output_pdf):
 
     except Exception as e:
 
-        logging.error(
-            f"Error processing PDF: {str(e)}"
-        )
+        logging.error(str(e))
+
+        return False
+
+# =========================
+# DOB + SEAL REMOVE FUNCTION
+# =========================
+
+def remove_dob_and_seal(input_pdf, output_pdf):
+
+    try:
+
+        doc = fitz.open(input_pdf)
+
+        changes_done = False
+
+        for page in doc:
+
+            # =========================
+            # REMOVE DOB
+            # =========================
+
+            dob_fields = page.search_for(
+                "Date of Birth"
+            )
+
+            for field in dob_fields:
+
+                search_area = fitz.Rect(
+                    field.x1 + 5,
+                    field.y0 - 3,
+                    field.x1 + 140,
+                    field.y1 + 3
+                )
+
+                words = page.get_text("words")
+
+                dob_words = []
+
+                for word in words:
+
+                    rect = fitz.Rect(word[:4])
+
+                    if search_area.intersects(rect):
+
+                        dob_words.append(word)
+
+                if dob_words:
+
+                    x0 = min(w[0] for w in dob_words)
+                    y0 = min(w[1] for w in dob_words)
+                    x1 = max(w[2] for w in dob_words)
+                    y1 = max(w[3] for w in dob_words)
+
+                    dob_rect = fitz.Rect(
+                        x0,
+                        y0,
+                        x1,
+                        y1
+                    )
+
+                    page.draw_rect(
+                        dob_rect,
+                        color=(1,1,1),
+                        fill=(1,1,1)
+                    )
+
+                    changes_done = True
+
+            # =========================
+            # REMOVE SEAL
+            # =========================
+
+            seal_rect = fitz.Rect(
+                390,
+                500,
+                560,
+                760
+            )
+
+            page.draw_rect(
+                seal_rect,
+                color=(1,1,1),
+                fill=(1,1,1)
+            )
+
+            changes_done = True
+
+        if changes_done:
+
+            doc.save(
+                output_pdf,
+                garbage=4,
+                deflate=True
+            )
+
+        else:
+
+            shutil.copy(input_pdf, output_pdf)
+
+        doc.close()
+
+        return True
+
+    except Exception as e:
+
+        logging.error(str(e))
 
         return False
 
@@ -197,10 +298,7 @@ def upload():
 
         if not files or files[0].filename == "":
 
-            return """
-                <h3>Please select PDF files</h3>
-                <a href='/'>Go Back</a>
-            """
+            return "<h3>Please select PDF files</h3>"
 
         timestamp = str(int(time.time()))
 
@@ -239,20 +337,12 @@ def upload():
                     add_history(
                         file.filename,
                         "SUCCESS",
-                        "DOB masked successfully"
+                        "DOB masked"
                     )
 
                     zipf.write(
                         output_path,
                         arcname=file.filename
-                    )
-
-                else:
-
-                    add_history(
-                        file.filename,
-                        "FAILED",
-                        "DOB masking failed"
                     )
 
         return send_file(
@@ -264,13 +354,10 @@ def upload():
 
         logging.error(str(e))
 
-        return """
-            <h3>Error processing PDFs</h3>
-            <a href='/'>Go Back</a>
-        """
+        return "Error"
 
 # =========================
-# PDF FOLDER ORGANIZER
+# ORGANIZER MODULE
 # =========================
 
 @app.route("/organize", methods=["POST"])
@@ -278,18 +365,15 @@ def organize_pdfs():
 
     try:
 
-        files = request.files.getlist("folder_pdfs")
-
-        if not files or files[0].filename == "":
-
-            return """
-                <h3>Please select PDF files</h3>
-                <a href='/'>Go Back</a>
-            """
+        files = request.files.getlist(
+            "folder_pdfs"
+        )
 
         timestamp = str(int(time.time()))
 
-        zip_filename = f"organized_pdfs_{timestamp}.zip"
+        zip_filename = (
+            f"organized_pdfs_{timestamp}.zip"
+        )
 
         zip_path = os.path.join(
             OUTPUT_FOLDER,
@@ -300,10 +384,8 @@ def organize_pdfs():
 
             for file in files:
 
-                original_filename = file.filename
-
                 folder_name = os.path.splitext(
-                    original_filename
+                    file.filename
                 )[0]
 
                 folder_path = os.path.join(
@@ -318,20 +400,20 @@ def organize_pdfs():
 
                 pdf_path = os.path.join(
                     folder_path,
-                    original_filename
+                    file.filename
                 )
 
                 file.save(pdf_path)
 
-                add_history(
-                    original_filename,
-                    "SUCCESS",
-                    f"Folder created: {folder_name}"
-                )
-
                 zipf.write(
                     pdf_path,
-                    arcname=f"{folder_name}/{original_filename}"
+                    arcname=f"{folder_name}/{file.filename}"
+                )
+
+                add_history(
+                    file.filename,
+                    "SUCCESS",
+                    "Folder created"
                 )
 
         return send_file(
@@ -343,17 +425,87 @@ def organize_pdfs():
 
         logging.error(str(e))
 
-        return """
-            <h3>Error organizing PDFs</h3>
-            <a href='/'>Go Back</a>
-        """
+        return "Error"
+
+# =========================
+# DOB + SEAL REMOVE MODULE
+# =========================
+
+@app.route("/remove_seal", methods=["POST"])
+def remove_seal():
+
+    try:
+
+        files = request.files.getlist(
+            "seal_pdfs"
+        )
+
+        timestamp = str(int(time.time()))
+
+        zip_filename = (
+            f"seal_removed_{timestamp}.zip"
+        )
+
+        zip_path = os.path.join(
+            OUTPUT_FOLDER,
+            zip_filename
+        )
+
+        with zipfile.ZipFile(zip_path, "w") as zipf:
+
+            for file in files:
+
+                filename = (
+                    f"{timestamp}_{file.filename}"
+                )
+
+                input_path = os.path.join(
+                    UPLOAD_FOLDER,
+                    filename
+                )
+
+                output_path = os.path.join(
+                    OUTPUT_FOLDER,
+                    filename
+                )
+
+                file.save(input_path)
+
+                result = remove_dob_and_seal(
+                    input_path,
+                    output_path
+                )
+
+                if result:
+
+                    add_history(
+                        file.filename,
+                        "SUCCESS",
+                        "DOB and seal removed"
+                    )
+
+                    zipf.write(
+                        output_path,
+                        arcname=file.filename
+                    )
+
+        return send_file(
+            zip_path,
+            as_attachment=True
+        )
+
+    except Exception as e:
+
+        logging.error(str(e))
+
+        return "Error"
 
 # =========================
 # RUN APP
 # =========================
 
 if __name__ == "__main__":
-    
+
     port = int(os.environ.get("PORT", 5000))
 
     app.run(
